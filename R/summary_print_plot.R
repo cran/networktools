@@ -28,17 +28,27 @@ summary.all.impact <- function(object,...){
 
 #' @export
 summary.expectedInf <- function(object,...){
-  if(is.list(object)){
+  if(length(object)==2){
     class(object$step1) <- class(object$step2) <- NULL
     cat("One-step Expected Influence \n\n")
     print(object$step1)
     cat("\nTwo-step Expected Influence \n\n")
     print(object$step2)
+  } else if (names(object)[1]=="step1") {
+    class(object$step1) <- NULL
+    cat("One-step Expected Influence \n\n")
+    print(object$step1)
   } else{
-    class(object) <- NULL
-    cat("Expected Influence \n\n")
-    print(object)
+    class(object$step2) <- NULL
+    cat("Two-step Expected Influence \n\n")
+    print(object$step2)
   }
+}
+
+#' @export
+summary.bridge <- function(object,...){
+    class(object) <- NULL
+    print(data.frame(object))
 }
 
 #' @export
@@ -70,16 +80,15 @@ print.all.impact <- function(x,...){
 
 #' @export
 print.expectedInf <- function(x,...){
-  if(is.list(x)){
-  class(x$step1) <- class(x$step2) <- NULL
-  cat("$out1 \n")
-  print(x$step1)
-  cat("$out2 \n")
-  print(x$step2)
-  } else{
-    class(x) <- NULL
-    print(x)
-  }
+  x1 <- x
+  class(x1) <- NULL
+  print(x1)
+}
+
+#' @export
+print.bridge <- function(x,...){
+  class(x) <- NULL
+  print(x)
 }
 
 #' Plot "all.impact" objects
@@ -90,7 +99,8 @@ print.expectedInf <- function(x,...){
 #' @param order "alphabetical" orders nodes alphabetically, "value" orders nodes from
 #' highest to lowest impact value
 #' @param zscore logical. Converts raw impact statistics to z-scores for plotting
-#' @param abs_val logical. Plot absolute values of global strength impacts
+#' @param abs_val logical. Plot absolute values of global strength impacts.
+#' If both abs_val=TRUE and zscore=TRUE, plots the absolute value of the z-scores.
 #' @param ... other plotting specifications (ggplot2)
 #'
 #' @details
@@ -109,16 +119,31 @@ print.expectedInf <- function(x,...){
 #' }
 #' @method plot all.impact
 #' @export
-plot.all.impact <- function(x, order=c("alphabetical", "value"), zscore = FALSE, abs_val=FALSE,...){
+plot.all.impact <- function(x, order=c("given","value", "alphabetical"), zscore=FALSE, abs_val=FALSE,...){
   df <- data.frame(names(x$Global.Strength$impact), x$Global.Strength$impact, x$Network.Structure$impact)
   colnames(df) <- c("NodeName", "Global Strength Impact", "Network Structure Impact")
   if(zscore) {df$`Global Strength Impact` <- scale(df$`Global Strength Impact`)
   df$`Network Structure Impact` <- scale(df$`Network Structure Impact`)}
-  if(abs_val) {df$`Global Strength Impact` <- abs(df$`Global Strength Impact`)}
+  if(abs_val) {df$`Global Strength Impact` <- abs(df$`Global Strength Impact`)
+  df$`Network Structure Impact` <- abs(df$`Network Structure Impact`)}
   longdf <- suppressWarnings(suppressMessages(reshape2::melt(df)))
   colnames(longdf) <- c("NodeName", "Impact.Type", "ImpValue")
   NodeName <- longdf[,1]; ImpValue <- longdf[,3]
-  if(order[1]=="value") {
+  if(order[1]=="given"){
+    gl <- longdf[longdf$Impact.Type== "Global Strength Impact",]
+    ns <- longdf[longdf$Impact.Type== "Network Structure Impact",]
+    gl$NodeName <- factor(as.character(gl$NodeName), levels = unique(as.character(gl$NodeName)))
+    ns$NodeName <- factor(as.character(ns$NodeName), levels = unique(as.character(ns$NodeName)))
+    gl$NodeName <- factor(gl$NodeName, levels=rev(levels(gl$NodeName)))
+    ns$NodeName <- factor(ns$NodeName, levels=rev(levels(ns$NodeName)))
+    g1 <- ggplot2::ggplot(gl, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...)
+    g1 <- g1 + ggplot2::geom_path() + ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point() +
+      ggplot2::facet_grid(~Impact.Type, scales="free")
+    g2 <- ggplot2::ggplot(ns, ggplot2::aes(x=ImpValue, y=NodeName, group=NA))
+    g2 <- g2 + ggplot2::geom_path() + ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point() +
+      ggplot2::facet_grid(~Impact.Type, scales="free")
+    gridExtra::grid.arrange(g1,g2, ncol=2)
+  } else if(order[1]=="value") {
   gl <- longdf[longdf$Impact.Type== "Global Strength Impact",]
   ns <- longdf[longdf$Impact.Type== "Network Structure Impact",]
   gl <- gl[with(gl, order(gl$ImpValue)),]
@@ -150,7 +175,8 @@ plot.all.impact <- function(x, order=c("alphabetical", "value"), zscore = FALSE,
 #' @param order "alphabetical" orders nodes alphabetically, "value" orders nodes from
 #' highest to lowest impact value
 #' @param zscore logical. Converts raw impact statistics to z-scores for plotting
-#' @param abs_val logical. Plot absolute values of global strength impacts
+#' @param abs_val logical. Plot absolute values of global strength impacts.
+#' If both abs_val=TRUE and zscore=TRUE, plots the absolute value of the z-scores.
 
 #' @param ... other plotting specifications (ggplot2)
 #'
@@ -171,13 +197,20 @@ plot.all.impact <- function(x, order=c("alphabetical", "value"), zscore = FALSE,
 #' }
 #' @method plot global.impact
 #' @export
-plot.global.impact <- function(x, order=c("alphabetical", "value"), zscore = FALSE,abs_val=FALSE,...) {
+plot.global.impact <- function(x, order=c("given","value","alphabetical"), zscore=FALSE,abs_val=FALSE,...) {
   df <- data.frame(names(x$impact), x$impact)
   colnames(df) <- c("NodeName", "ImpValue")
   NodeName <- df[,1]; ImpValue <- df[,2]
   if(zscore) {df$ImpValue <- scale(df$ImpValue)}
   if(abs_val) {df$ImpValue <- abs(df$ImpValue)}
-  if(order[1]=="value") {
+  if(order[1]=="given") {
+    df$NodeName <- factor(as.character(df$NodeName), levels = unique(as.character(df$NodeName)))
+    df$NodeName <- factor(df$NodeName, levels=rev(levels(df$NodeName)))
+    g <- ggplot2::ggplot(df, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...) + ggplot2::geom_path() +
+      ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point() +
+      ggplot2::ggtitle("Global Strength Impact") + ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
+    return(g)
+  } else if(order[1]=="value") {
     df <- df[with(df, order(df$ImpValue)),]
     df$NodeName <- factor(as.character(df$NodeName), levels = unique(as.character(df$NodeName)[order(df$ImpValue)]))
     g <- ggplot2::ggplot(df, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...) + ggplot2::geom_path() +
@@ -205,6 +238,9 @@ plot.global.impact <- function(x, order=c("alphabetical", "value"), zscore = FAL
 #' @param order "alphabetical" orders nodes alphabetically, "value" orders nodes from
 #' highest to lowest impact value
 #' @param zscore logical. Converts raw impact statistics to z-scores for plotting
+#' @param abs_val logical. Plot absolute values of network structure impacts.
+#' If both abs_val=TRUE and zscore=TRUE, plots the absolute value of the z-scores.
+
 #' @param ... other plotting specifications (ggplot2)
 #'
 #' @details
@@ -224,12 +260,20 @@ plot.global.impact <- function(x, order=c("alphabetical", "value"), zscore = FAL
 #' }
 #' @method plot structure.impact
 #' @export
-plot.structure.impact <- function(x, order=c("alphabetical", "value"), zscore = FALSE,...) {
+plot.structure.impact <- function(x, order=c("given","alphabetical", "value"),zscore=FALSE,abs_val=FALSE,...) {
   df <- data.frame(names(x$impact), x$impact)
   colnames(df) <- c("NodeName", "ImpValue")
   NodeName <- df[,1]; ImpValue <- df[,2]
   if(zscore) {df$ImpValue <- scale(df$ImpValue)}
-  if(order[1]=="value") {
+  if(abs_val) {df$ImpValue <- abs(df$ImpValue)}
+  if(order[1]=="given") {
+    df$NodeName <- factor(as.character(df$NodeName), levels = unique(as.character(df$NodeName)))
+    df$NodeName <- factor(df$NodeName, levels=rev(levels(df$NodeName)))
+    g <- ggplot2::ggplot(df, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...) + ggplot2::geom_path() +
+      ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point() +
+      ggplot2::ggtitle("Network Structure Impact") + ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
+    return(g)
+  } else if(order[1]=="value") {
     df <- df[with(df, order(df$ImpValue)),]
     df$NodeName <- factor(as.character(df$NodeName), levels = unique(as.character(df$NodeName)[order(df$ImpValue)]))
     g <- ggplot2::ggplot(df, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...) + ggplot2::geom_path() +
@@ -261,6 +305,8 @@ plot.structure.impact <- function(x, order=c("alphabetical", "value"), zscore = 
 #' given node, and one for high values. "single" returns a network where edges represent
 #' the edge impact of the given node.
 #' @param title if not otherwise specified, title is automatically generated
+#' @param maximum sets a maximum for edge thickness (see maximum argument in ?qgraph).
+#' "auto" uses the maximum edge from the collective two networks.
 #' @param ... other plotting specifications (qgraph)
 #'
 #' @details
@@ -286,7 +332,7 @@ plot.structure.impact <- function(x, order=c("alphabetical", "value"), zscore = 
 #'}
 #' @method plot edge.impact
 #' @export
-plot.edge.impact <- function(x, nodes=c("first", "all"), type.edgeplot=c("contrast","single"), title=NULL,...) {
+plot.edge.impact <- function(x, nodes=c("first", "all"), type.edgeplot=c("contrast","single"), title=NULL, maximum="auto",...) {
   if(nodes[1]=="first"){
     nodesTested <- 1
   } else if(nodes[1]=="all") {
@@ -302,9 +348,11 @@ plot.edge.impact <- function(x, nodes=c("first", "all"), type.edgeplot=c("contra
         title1 <- paste("Low values of", names(x$lo)[i])
         title2 <- paste("High values of", names(x$hi)[i])
       } else{title1 <- title[1]; title2 <- title[2]}
+      if(maximum=="auto"){max <- max(max(x$lo[[i]]), max(x$hi[[i]]))
+      }else {max <- maximum}
       op <- graphics::par(mfrow=c(length(nodesTested),2))
-      qgraph::qgraph(x$lo[[i]], title = title1,...)
-      qgraph::qgraph(x$hi[[i]], title = title2,...)
+      qgraph::qgraph(x$lo[[i]], title = title1,maximum=max,...)
+      qgraph::qgraph(x$hi[[i]], title = title2,maximum=max,...)
       graphics::par(op)
     }
   }
@@ -355,9 +403,10 @@ plot.edge.impact <- function(x, nodes=c("first", "all"), type.edgeplot=c("contra
 #'}
 #' @method plot expectedInf
 #' @export
-plot.expectedInf <- function(x, order=c("alphabetical", "value"), zscore = FALSE,...){
+plot.expectedInf <- function(x, order=c("given","alphabetical", "value"), zscore=TRUE,...){
   if(is.list(x)){
   class(x$step1) <- class(x$step2) <- NULL
+  if(is.null(names(x$step1))) {names(x$step1) <- 1:length(x$step1)}
   df <- data.frame(names(x$step1), x$step1, x$step2)
   colnames(df) <- c("NodeName", "One-step Expected Influence", "Two-step Expected Influence")
   if(zscore) {df$`One-step Expected Influence` <- scale(df$`One-step Expected Influence`)
@@ -365,7 +414,21 @@ plot.expectedInf <- function(x, order=c("alphabetical", "value"), zscore = FALSE
   longdf <- suppressWarnings(suppressMessages(reshape2::melt(df)))
   colnames(longdf) <- c("NodeName", "Impact.Type", "ImpValue")
   NodeName <- longdf[,1]; ImpValue <- longdf[,3]
-  if(order[1]=="value") {
+  if(order[1]=="given"){
+    gl <- longdf[longdf$Impact.Type== "One-step Expected Influence",]
+    ns <- longdf[longdf$Impact.Type== "Two-step Expected Influence",]
+    gl$NodeName <- factor(as.character(gl$NodeName), levels = unique(as.character(gl$NodeName)))
+    ns$NodeName <- factor(as.character(ns$NodeName), levels = unique(as.character(ns$NodeName)))
+    gl$NodeName <- factor(gl$NodeName, levels=rev(levels(gl$NodeName)))
+    ns$NodeName <- factor(ns$NodeName, levels=rev(levels(ns$NodeName)))
+    g1 <- ggplot2::ggplot(gl, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...)
+    g1 <- g1 + ggplot2::geom_path() + ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point() +
+      ggplot2::facet_grid(~Impact.Type, scales="free")
+    g2 <- ggplot2::ggplot(ns, ggplot2::aes(x=ImpValue, y=NodeName, group=NA))
+    g2 <- g2 + ggplot2::geom_path() + ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point() +
+      ggplot2::facet_grid(~Impact.Type, scales="free")
+    gridExtra::grid.arrange(g1,g2, ncol=2)
+  } else if(order[1]=="value") {
     gl <- longdf[longdf$Impact.Type== "One-step Expected Influence",]
     ns <- longdf[longdf$Impact.Type== "Two-step Expected Influence",]
     gl <- gl[with(gl, order(gl$ImpValue)),]
@@ -392,7 +455,14 @@ plot.expectedInf <- function(x, order=c("alphabetical", "value"), zscore = FALSE
     colnames(df) <- c("NodeName", "ImpValue")
     NodeName <- df[,1]; ImpValue <- df[,2]
     if(zscore) {df$ImpValue <- scale(df$ImpValue)}
-    if(order[1]=="value") {
+    if(order[1]=="given"){
+      df$NodeName <- factor(as.character(df$NodeName), levels = unique(as.character(df$NodeName)))
+      df$NodeName <- factor(df$NodeName, levels=rev(levels(df$NodeName)))
+      g <- ggplot2::ggplot(df, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...) + ggplot2::geom_path() +
+        ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point() +
+        ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
+      return(g)
+    } else if(order[1]=="value") {
       df <- df[with(df, order(df$ImpValue)),]
       df$NodeName <- factor(as.character(df$NodeName), levels = unique(as.character(df$NodeName)[order(df$ImpValue)]))
       g <- ggplot2::ggplot(df, ggplot2::aes(x=ImpValue, y=NodeName, group=NA),...) + ggplot2::geom_path() +
@@ -409,4 +479,86 @@ plot.expectedInf <- function(x, order=c("alphabetical", "value"), zscore = FALSE
       return(g)
   }}
 }
+
+#' Plot "bridge" objects
+#'
+#' Convenience function for plotting bridge centrality
+#'
+#' @param x an output object from \code{bridge} (class \code{bridge})
+#' @param order "alphabetical" orders nodes alphabetically, "value" orders nodes from
+#' highest to lowest centrality values
+#' @param zscore logical. Converts raw impact statistics to z-scores for plotting
+#' @param include a vector of centrality measures to include ("Bridge Strength", "Bridge Betweenness", "Bridge Closeness",
+#' "Bridge Expected Influence (1-step)", "Bridge Expected Influence (2-step)"),
+#' if missing all available measures will be plotted
+#' @param ... other plotting specifications in ggplot2 (aes)
+#'
+#' @details
+#'
+#' Inputting an object of class \code{bridge}
+#' will return a line plot that shows the bridge centrality
+#' values of each node
+#'
+#' @examples
+#'\donttest{
+#' b <- bridge(cor(depression))
+#' plot(b)
+#' plot(b, order="value", zscore=TRUE)
+#' plot(b, include=c("Bridge Strength", "Bridge Betweenness"))
+#'}
+#' @method plot bridge
+#' @export
+plot.bridge <- function(x, order=c("given","alphabetical", "value"), zscore=FALSE, include, ...){
+  attr(x, "class") <- NULL
+  nodes <- names(x[[1]])
+  x$communities <- NULL
+  if(zscore) {
+    scalenoatt <- function(y){
+      y <- scale(y)
+      attr(y, "scaled:center") <- NULL
+      attr(y, "scaled:scale") <- NULL
+      return(y)
+    }
+    x <- sapply(x, scalenoatt)
+  }
+  Long <- reshape2::melt(x); colnames(Long)[2] <- "measure"
+  Long$type <- rep(NA, nrow(Long))
+  Long$node <- rep(nodes, length(unique(Long$measure)))
+  if (missing(include)) {
+    include <- unique(Long$measure[Long$measure != "communities"])
+  }
+  Long <- subset(Long, Long$measure %in% include)
+  if(order[1]=="given"){
+    Long$node <- factor(as.character(Long$node), levels = rev(unique(as.character(Long$node))))
+    g <- ggplot2::ggplot(Long, ggplot2::aes_string(x = 'value', y = 'node', group = 'type', ...))
+    g <- g + ggplot2::geom_path() + ggplot2::xlab("") + ggplot2::ylab("") + ggplot2::geom_point()
+    g <- g + ggplot2::facet_grid('~measure', scales = "free")
+  } else if(order[1]=="alphabetical"){
+    Long <- Long[with(Long, order(Long$node)),]
+    Long$node <- factor(as.character(Long$node), levels = unique(as.character(Long$node)[order(Long$node)]))
+    g <- ggplot2::ggplot(Long, ggplot2::aes_string(x='value', y='node', group='type', ...))
+    g <- g + ggplot2::geom_path() + ggplot2::geom_point() + ggplot2::xlab("") + ggplot2::ylab("") +
+      ggplot2::facet_grid('~measure', scales="free") + ggplot2::scale_y_discrete(limits = rev(levels(Long$node)))
+  } else if(order[1]=="value") {
+    glist <- list()
+    for(i in 1:length(include)) {
+      temp_Long <- Long[Long$measure==include[i],]
+      temp_Long <- temp_Long[with(temp_Long, order(temp_Long$value)),]
+      temp_Long$node <- factor(as.character(temp_Long$node), levels = unique(as.character(temp_Long$node)[order(temp_Long$value)]))
+      glist[[i]] <- ggplot2::ggplot(temp_Long, ggplot2::aes_string(x='value', y='node', group='type',...)) +
+        ggplot2::geom_path() + ggplot2::geom_point() + ggplot2::xlab("") + ggplot2::ylab("") +
+        ggplot2::facet_grid('~measure', scales="free")
+    }
+    if(length(include)==1){g <- glist[[1]]
+    } else if(length(include)==2){gridExtra::grid.arrange(glist[[1]],glist[[2]], ncol=2)
+    } else if(length(include)==3){gridExtra::grid.arrange(glist[[1]],glist[[2]],glist[[3]], ncol=3)
+    } else if(length(include)==4){gridExtra::grid.arrange(glist[[1]],glist[[2]],glist[[3]],glist[[4]], ncol=4)
+    } else if(length(include)==5){gridExtra::grid.arrange(glist[[1]],glist[[2]],glist[[3]],glist[[4]],glist[[5]], ncol=5)
+    }
+  }
+  if(order[1]!="value") { # if "value", plotting is already done with gridExtra (552-557)
+      return(g)
+    }
+}
+
 

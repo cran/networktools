@@ -13,19 +13,21 @@ coerce_to_comm_edgelist <- function(input, communities=NULL, directed=NULL, node
       nodes <- names(igraph::V(input))
     }
   } else if(class(input)=="qgraph"){
-    col1 <- names(input$graphAttributes$Nodes$names)[input$Edgelist$from]
-    col3 <- names(input$graphAttributes$Nodes$names)[input$Edgelist$to]
+    if(is.null(nodes)){
+      if(is.null(input$graphAttributes$Nodes$names)) {
+        nodes <- 1:length(unique(c(input$Edgelist$from, input$Edgelist$to)))
+      } else {nodes <- input$graphAttributes$Nodes$names}
+    }
+    col1 <- nodes[input$Edgelist$from]
+    col3 <- nodes[input$Edgelist$to]
     edgelist <- as.data.frame(cbind(col1, col3, input$Edgelist$weight))
     if(is.null(directed)){
       if(TRUE %in% input$Edgelist$directed){
         directed <-TRUE} else {directed <- FALSE}
     }
-    if(is.null(nodes)){
-      nodes <- names(input$graphAttributes$Nodes$names)
-    }
   } else if (class(input)=="matrix") {
     if(is.null(directed)){
-      directed <- !isSymmetric.matrix(input)
+      directed <- !isSymmetric(unname(as.matrix(input)))
     }
     if(!directed){
       input[upper.tri(input, diag=TRUE)] <- 0
@@ -33,6 +35,7 @@ coerce_to_comm_edgelist <- function(input, communities=NULL, directed=NULL, node
     if(is.null(nodes)){
       nodes <- colnames(input)
     }
+    colnames(input) <- rownames(input) <- nodes
     edgelist <- reshape2::melt(input)
     edgelist <- edgelist[edgelist$value != 0,]
   }
@@ -52,6 +55,15 @@ coerce_to_comm_edgelist <- function(input, communities=NULL, directed=NULL, node
   return(edgelist)
 }
 
+#' Coerce to adjacency matrix
+#'
+#' Takes an object of type "qgraph", "igraph", or a matrix and outputs an adjacency matrix
+#'
+#' @param input a network of class "igraph", "qgraph", or an adjacency matrix representing
+#' a network
+#' @param directed logical. is the network directed? If set to NULL, auto-detection is used
+#'
+#' @export
 coerce_to_adjacency <- function(input, directed=NULL) {
   if(class(input)=="igraph"){
     mat <- as.matrix(igraph::get.adjacency(input, type="both"))
@@ -62,7 +74,9 @@ coerce_to_adjacency <- function(input, directed=NULL) {
     col1 <- input$Edgelist$from
     col3 <- input$Edgelist$to
     edgelist <- as.data.frame(cbind(col1, col3, input$Edgelist$weight))
-    nodes <- names(input$graphAttributes$Nodes$names)
+    if(is.null(input$graphAttributes$Nodes$names)) {
+      nodes <- 1:length(unique(c(col1, col3)))
+    } else {nodes <- input$graphAttributes$Nodes$names}
     mat <- matrix(0, length(nodes), length(nodes))
     colnames(mat) <- rownames(mat) <- nodes
     mat[as.matrix(edgelist)[,1:2]] <- edgelist[,3]
@@ -73,7 +87,10 @@ coerce_to_adjacency <- function(input, directed=NULL) {
     if(!directed){
      mat <- mat + t(mat) }
     } else {
-    mat <- input
+    mat <- as.matrix(input)
+    if(is.null(directed)) {
+      directed <- !isSymmetric(unname(mat))
+    }
     }
     attr(mat, "directed") <- directed
     return(mat)
@@ -105,8 +122,11 @@ extract_intra_edgelist <- function(edgelist, useCommunities="all"){
 comm_edgelist_to_igraph <- function(edgelist, directed) {
   edgelist[,1]<-as.character(edgelist[,1])
   edgelist[,2]<-as.character(edgelist[,2])
-  edgelist<-as.matrix(edgelist)
-  g<-igraph::graph_from_edgelist(edgelist[,1:2],directed=directed)
+  edgelist_1_2 <- as.matrix(edgelist[,1:2])
+  #if(dim(edgelist)[1]==1) {edgelist_1_2 <- t(edgelist_1_2)}
+  g<-igraph::graph_from_edgelist(edgelist_1_2,directed=directed)
   igraph::E(g)$weight <- as.numeric(edgelist[,3])
   return(g)
 }
+
+

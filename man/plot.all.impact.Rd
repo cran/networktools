@@ -4,7 +4,7 @@
 \alias{plot.all.impact}
 \title{Plot "all.impact" objects}
 \usage{
-\method{plot}{all.impact}(x, order = c("alphabetical", "value"),
+\method{plot}{all.impact}(x, order = c("given", "value", "alphabetical"),
   zscore = FALSE, abs_val = FALSE, ...)
 }
 \arguments{
@@ -15,7 +15,8 @@ highest to lowest impact value}
 
 \item{zscore}{logical. Converts raw impact statistics to z-scores for plotting}
 
-\item{abs_val}{logical. Plot absolute values of global strength impacts}
+\item{abs_val}{logical. Plot absolute values of global strength impacts.
+If both abs_val=TRUE and zscore=TRUE, plots the absolute value of the z-scores.}
 
 \item{...}{other plotting specifications (ggplot2)}
 }
