@@ -1,7 +1,7 @@
 Package: networktools
 Title: Tools for Identifying Important Nodes in Networks
-Version: 1.1.0
-Date: 2017-8-8
+Version: 1.1.1
+Date: 2018-2-5
 Authors@R: person("Payton", "Jones", email = "payton_jones@g.harvard.edu", role = c("aut", "cre"))
 Description: Includes assorted tools for network analysis. Useful for 
     calculating and plotting expected influence, bridge centrality, and impact statistics. 
@@ -10,15 +10,16 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Imports:
-        qgraph,igraph,IsingFit,reshape2,nnet,ggplot2,gridExtra,stats,graphics,utils,NetworkComparisonTest,devtools
+        qgraph,igraph,IsingFit,reshape2,nnet,ggplot2,gridExtra,stats,graphics,utils,NetworkComparisonTest,devtools,
+        cocor
 RoxygenNote: 6.0.1
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 URL: https://CRAN.R-project.org/package=networktools
 BugReports: http://github.com/paytonjjones/networktools/issues
 NeedsCompilation: no
-Packaged: 2017-08-09 16:46:12 UTC; payto
+Packaged: 2018-02-05 16:01:56 UTC; payto
 Author: Payton Jones [aut, cre]
 Maintainer: Payton Jones <payton_jones@g.harvard.edu>
 Repository: CRAN
-Date/Publication: 2017-08-09 18:05:46 UTC
+Date/Publication: 2018-02-05 16:31:02 UTC
