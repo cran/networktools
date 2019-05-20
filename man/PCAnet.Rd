@@ -4,7 +4,8 @@
 \alias{PCAnet}
 \title{PCAnet}
 \usage{
-PCAnet(qgraph_net, cormat, varTxt = F, ...)
+PCAnet(qgraph_net, cormat, varTxt = F, repulse = F, repulsion = 1,
+  principalArgs = list(), ...)
 }
 \arguments{
 \item{qgraph_net}{an object of type \code{qgraph}}
@@ -14,7 +15,13 @@ the function will assume that the adjacency matrix from \code{qgraph_net} is a c
 
 \item{varTxt}{logical. Print the variance accounted for by the PCA in the lower left corner of the plot}
 
-\item{...}{additional arguments passed to \code{psych::principal}}
+\item{repulse}{logical. Add a small repulsion force with wordcloud package to avoid node overlap?}
+
+\item{repulsion}{scalar for the repulsion force (if repulse=T). Larger values add more repulsion}
+
+\item{principalArgs}{additional arguments in list format passed to \code{psych::principal}}
+
+\item{...}{additional arguments passed to \code{qgraph}}
 }
 \description{
 Convenience function for converting a qgraph object to a layout determined

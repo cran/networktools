@@ -16,8 +16,8 @@
 #' Symmetric adjacency matrices will be undirected, asymmetric matrices will be directed
 #' @param nodes a vector containing the names of the nodes. If set to "NULL", this vector will
 #' be automatically detected in the order extracted
-#' @param average logical. Bridge centralities are divided by the total number of nodes outside their community,
-#' making bridge centrality more comparable across large and small communities.
+#' @param normalize logical. Bridge centralities are divided by their highest possible value (assuming max edge strength=1)
+#' in order to normalize by different community sizes
 #'
 #' @details
 #'
@@ -41,7 +41,7 @@
 #' Bridge betweenness is defined as the number of times a node B lies on the shortest path between
 #' nodes A and C, where nodes A and C come from different communities.
 #'
-#' Bridge closeness is defined as the average length of the path from a node A to all nodes that are
+#' Bridge closeness is defined as the inverse of the average length of the path from a node A to all nodes that are
 #' not in the same community as node A.
 #'
 #' Bridge expected influence (1-step) is defined as the sum of the value (+ or -) of all edges that
@@ -82,8 +82,12 @@
 #'Each contains a vector of named centrality values
 #'
 #'@export
-bridge <- function(network, communities=NULL, useCommunities="all", directed=NULL, nodes=NULL, average=FALSE) {
+bridge <- function(network, communities=NULL, useCommunities="all", directed=NULL, nodes=NULL, normalize=FALSE) {
   adj <- coerce_to_adjacency(network)
+  ## name nodes
+  if(is.null(nodes)){nodes <- colnames(adj)}
+  allnodes <- nodes
+  colnames(adj) <- rownames(adj) <- nodes
   if(NA %in% adj){
     adj[is.na(adj)] <- 0
     message("Note: NAs detected in adjacency matrix, will be treated as 0s")
@@ -101,7 +105,7 @@ bridge <- function(network, communities=NULL, useCommunities="all", directed=NUL
 
   #if communities not supplied, use spinglass default settings to detect
   if(is.null(communities) | class(communities)=="function"){
-    if(useCommunities != "all"){
+    if(useCommunities[1] != "all"){
       stop("You must prespecify communities to use the useCommunities argument")
     }
     communities <- try(igraph::spinglass.community(g, spins=3))
@@ -109,15 +113,29 @@ bridge <- function(network, communities=NULL, useCommunities="all", directed=NUL
     message("Note: Communities automatically detected with spinglass. Use \'communities\' argument to prespecify community structure")
   }
 
-  if(is.null(nodes)){nodes <- colnames(adj)}
   if(class(communities)=="communities") {communities <- communities$membership}
   if(is.list(communities)){communities <- as.character(utils::stack(communities)$ind)}
 
+  #Check for communities mismatch
+  if(length(communities)!=length(nodes)){
+    stop("Length of communities argument does not match number of nodes")
+  }
+
   #useCommunities
+  innodes <- communities %in% communities
   if(useCommunities[1]!="all"){
     innodes <- communities %in% useCommunities
+    communities_orig <- communities
     communities <- communities[innodes]
     adj <- adjmat <- adj[innodes,innodes]
+    # Recompute g
+    # get igraph of complete network
+    if(directed) {
+      g <- igraph::graph_from_adjacency_matrix(adj, mode="directed", diag=FALSE, weighted= TRUE)
+    } else {
+      g <- igraph::graph_from_adjacency_matrix(adj, mode="upper", diag=FALSE, weighted= TRUE)
+    }
+    nodes <- nodes[innodes]
   }
 
   #Check for common communities issues
@@ -127,13 +145,9 @@ bridge <- function(network, communities=NULL, useCommunities="all", directed=NUL
   if(length(unique(communities))==1){
     stop("Only 1 community specified, bridge centrality cannot be computed")
   }
-  if(length(communities)!=length(nodes)){
-    stop("Length of communities argument does not match number of nodes")
-  }
 
   #take inverse of weight for igraph object "g" only (igraph's length functions view small edges as closer)
   igraph::E(g)$weight <- 1/igraph::E(g)$weight
-
 
   ## Bridge strength
   out_degree <- in_degree <- total_strength <- vector()
@@ -247,6 +261,19 @@ bridge <- function(network, communities=NULL, useCommunities="all", directed=NUL
   ei2 <- sapply(nodes, FUN=ei2func, network=adjmat, nodes=nodes, communities=communities)
   names(ei2) <- nodes
 
+  if(useCommunities[1]!="all"){
+    NAvec <- rep(NA, length(allnodes)-length(nodes))
+    names(NAvec) <- allnodes[!(allnodes %in% nodes)]
+    in_degree <- c(in_degree, NAvec)[allnodes]
+    out_degree <- c(out_degree, NAvec)[allnodes]
+    total_strength <- c(total_strength, NAvec)[allnodes]
+    betweenness <- c(betweenness, NAvec)[allnodes]
+    closeness <- c(closeness, NAvec)[allnodes]
+    ei1 <- c(ei1, NAvec)[allnodes]
+    ei2 <- c(ei2, NAvec)[allnodes]
+    #communities <- c(communities, NAvec)[allnodes]
+    communities <- communities_orig
+  }
 
   if(directed){
     res <- list("Bridge Indegree"=in_degree, "Bridge Outdegree"=out_degree, "Bridge Strength"=total_strength,
@@ -259,11 +286,22 @@ bridge <- function(network, communities=NULL, useCommunities="all", directed=NUL
                 communities=communities)
   }
 
-  if(average) {
-    for(l in 1:(length(res)-1)){
+  if(normalize) {
+    divbyp <- if(directed){c(1,2,3,6)}else{c(1,4)}
+    betw <- if(directed){4}else{2}
+    for(l in divbyp){ # indegree, outdegree, strength, BEI
       for(i in 1:length(res[[1]])){
-        res[[l]][i] <- res[[l]][i] / length(communities[communities!=communities[i]])
+        p <- length(communities[communities!=communities[i]])
+        res[[l]][i] <- res[[l]][i] / p
       }
+    }
+    for(i in 1:length(res[[1]])){ # BEI-2
+      p <- length(communities[communities!=communities[i]])
+      res[[length(res)-1]][i] <- res[[length(res)-1]][i] / (p + (length(communities)-1)*(p-(p/(length(communities)-1)))) # For BEI-2
+    }
+    for(i in 1:length(res[[1]])){ # betweenness
+      p <- length(communities[communities!=communities[i]])
+      res[[betw]][i] <- res[[betw]][i] / ((length(communities)-1) * p)
     }
   }
 

@@ -5,7 +5,8 @@
 \title{MDSnet}
 \usage{
 MDSnet(qgraph_net, type = c("ordinal", "interval", "ratio", "mspline"),
-  MDSadj = NULL, stressTxt = F, ...)
+  MDSadj = NULL, stressTxt = F, repulse = F, repulsion = 1,
+  mdsArgs = list(), ...)
 }
 \arguments{
 \item{qgraph_net}{an object of type \code{qgraph}}
@@ -17,7 +18,13 @@ stored in \code{qgraph_net}, provide it in this argument}
 
 \item{stressTxt}{logical. Print the stress value in the lower left corner of the plot?}
 
-\item{...}{additional arguments passed to \code{smacof::mds}}
+\item{repulse}{logical. Add a small repulsion force with wordcloud package to avoid node overlap?}
+
+\item{repulsion}{scalar for the repulsion force. Larger values add more repulsion}
+
+\item{mdsArgs}{additional arguments in list format passed to \code{smacof::mds}}
+
+\item{...}{additional arguments passed to \code{qgraph}}
 }
 \description{
 Convenience function for converting a qgraph object to a layout determined
